@@ -322,6 +322,41 @@ static inline int check_min_free_space(struct dentry *dentry, size_t size, int d
 
 	return 0;
 }
-#endif
+/*
+ * Copies attrs and maintains sdcardfs managed attrs
+ * Since our permission check handles all special permissions, set those to be open
+ */
+static inline void sdcardfs_copy_and_fix_attrs(struct inode *dest, const struct inode *src)
+{
+
+	dest->i_mode = (src->i_mode  & S_IFMT) | S_IRWXU | S_IRWXG |
+			S_IROTH | S_IXOTH; /* 0775 */
+	dest->i_uid = SDCARDFS_I(dest)->data->d_uid;
+	dest->i_gid = AID_SDCARD_RW;
+	dest->i_rdev = src->i_rdev;
+	dest->i_atime = src->i_atime;
+	dest->i_mtime = src->i_mtime;
+	dest->i_ctime = src->i_ctime;
+	dest->i_blkbits = src->i_blkbits;
+	dest->i_flags = src->i_flags;
+	set_nlink(dest, src->i_nlink);
+}
+
+static inline bool str_case_eq(const char *s1, const char *s2)
+{
+	return !strcasecmp(s1, s2);
+}
+
+static inline bool str_n_case_eq(const char *s1, const char *s2, size_t len)
+{
+	return !strncasecmp(s1, s2, len);
+}
+
+static inline bool qstr_case_eq(const struct qstr *q1, const struct qstr *q2)
+{
+	return q1->len == q2->len && str_n_case_eq(q1->name, q2->name, q2->len);
+}
+
+#define QSTR_LITERAL(string) QSTR_INIT(string, sizeof(string)-1)
 
 #endif	/* not _SDCARDFS_H_ */
