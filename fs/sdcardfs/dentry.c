@@ -17,7 +17,7 @@
  *          0: tell VFS to invalidate dentry
  *          1: dentry is valid
  */
-static int sdcardfs_d_revalidate(struct dentry *dentry, struct nameidata *nd)
+static int sdcardfs_d_revalidate(struct dentry *dentry, unsigned int flags)
 {
 	struct path parent_lower_path, lower_path;
 	struct dentry *parent_dentry = NULL;
@@ -26,7 +26,7 @@ static int sdcardfs_d_revalidate(struct dentry *dentry, struct nameidata *nd)
 	struct dentry *lower_dentry = NULL;
 	int err = 1;
 
-	if (nd && nd->flags & LOOKUP_RCU)
+	if (flags & LOOKUP_RCU)
 		return -ECHILD;
 
 	spin_lock(&dentry->d_lock);
@@ -43,6 +43,13 @@ static int sdcardfs_d_revalidate(struct dentry *dentry, struct nameidata *nd)
 	lower_dentry = lower_path.dentry;
 	lower_cur_parent_dentry = dget_parent(lower_dentry);
 
+	if ((lower_dentry->d_flags & DCACHE_OP_REVALIDATE)) {
+		err = lower_dentry->d_op->d_revalidate(lower_dentry, flags);
+		if (err == 0) {
+			d_drop(dentry);
+			goto out;
+		}
+	}
 	spin_lock(&lower_dentry->d_lock);
 	if (d_unhashed(lower_dentry)) {
 		spin_unlock(&lower_dentry->d_lock);
@@ -66,11 +73,7 @@ static int sdcardfs_d_revalidate(struct dentry *dentry, struct nameidata *nd)
 		spin_lock(&dentry->d_lock);
 	}
 
-	if (dentry->d_name.len != lower_dentry->d_name.len) {
-		__d_drop(dentry);
-		err = 0;
-	} else if (strncasecmp(dentry->d_name.name, lower_dentry->d_name.name,
-				dentry->d_name.len) != 0) {
+	if (!qstr_case_eq(&dentry->d_name, &lower_dentry->d_name)) {
 		__d_drop(dentry);
 		err = 0;
 	}
@@ -82,7 +85,22 @@ static int sdcardfs_d_revalidate(struct dentry *dentry, struct nameidata *nd)
 		spin_unlock(&dentry->d_lock);
 		spin_unlock(&lower_dentry->d_lock);
 	}
+	
+	if (!err)
+		goto out;
 
+	/* If our top's inode is gone, we may be out of date */
+	inode = igrab(dentry->d_inode);
+	if (inode) {
+		data = top_data_get(SDCARDFS_I(inode));
+		if (!data || data->abandoned) {
+			d_drop(dentry);
+			err = 0;
+		}
+		if (data)
+			data_put(data);
+		iput(inode);
+	}
 out:
 	dput(parent_dentry);
 	dput(lower_cur_parent_dentry);
