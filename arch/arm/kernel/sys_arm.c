@@ -202,26 +202,13 @@ asmlinkage int sys_execve(const char __user *filenamei,
 			  const char __user *const __user *envp, struct pt_regs *regs)
 {
 	int error;
-	char * filename;
+	struct filename *filename;
 
 	filename = getname(filenamei);
 	error = PTR_ERR(filename);
 	if (IS_ERR(filename))
 		goto out;
-
-#if defined CONFIG_SEC_RESTRICT_FORK
-	if(CHECK_ROOT_UID(current))
-		if(sec_restrict_fork())
-		{
-			PRINT_LOG("Restricted making process. PID = %d(%s) "
-							"PPID = %d(%s)\n",
-				current->pid, current->comm,
-				current->parent->pid, current->parent->comm);
-			return -EACCES;
-		}
-#endif	// End of CONFIG_SEC_RESTRICT_FORK
-
-	error = do_execve(filename, argv, envp, regs);
+	error = do_execve(filename->name, argv, envp, regs);
 	putname(filename);
 out:
 	return error;
