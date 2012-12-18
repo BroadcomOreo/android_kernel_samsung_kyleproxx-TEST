@@ -592,6 +592,66 @@ xlate_to_uni(const unsigned char *name, int len, unsigned char *outname,
 	return 0;
 }
 
+#ifdef CONFIG_VFAT_FS_NO_DUALNAMES
+/*
+ * This function creates a dummy 8.3 entry which is as compatible as
+ * possible with existing FAT devices, while not being a valid
+ * filename under windows or Linux
+ */
+static void vfat_build_dummy_83_buffer(struct inode *dir, char *msdos_name,
+				       int is_dir)
+{
+	/*
+	 * These characters are all invalid in 8.3 names, plus have
+	 * been shown to be harmless on all tested devices
+	 */
+	const char invalidchar[] = { 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x0B,
+				     0x0C, 0x0E, 0x0F, 0x10, 0x11, 0x12, 0x13,
+				     0x14, 0x15, 0x16, 0x17, 0x18, 0x19, 0x1A,
+				     0x1B, 0x1C, 0x1D, 0x1E, 0x1F, 0x22, 0x2a,
+				     0x3a, 0x3c, 0x3e, 0x3f, 0x5b, 0x5d, 0x7c };
+	int i, tilde_pos, slash_pos;
+	u32 rand_num = prandom_u32();
+
+	/* We need a '~' in the prefix to make Win98 happy. */
+	tilde_pos = rand_num % 8;
+	rand_num >>= 3;
+
+	/*
+	 * the '/' makes sure that even unpatched Linux systems can't
+	 * get at files by the 8.3 entry. Don't put in a / in
+	 * directories as it can cause problems with some
+	 * photo frames
+	 */
+	if (is_dir)
+		slash_pos = -1;
+	else {
+		slash_pos = (tilde_pos + 1 + rand_num % 7) % 8;
+		rand_num >>= 3;
+	}
+
+	/*
+	 * fill in the first 8 bytes with invalid characters. Note
+	 * that we need to be careful not to run out of randomness. We
+	 * leave the 3 byte extension in place as some cheap MP3
+	 * players need them.
+	 */
+	for (i = 0; i < 8; i++) {
+		if (i == tilde_pos)
+			msdos_name[i] = '~';
+		else if (i == slash_pos)
+			msdos_name[i] = '/';
+		else {
+			msdos_name[i] =
+				invalidchar[rand_num % sizeof(invalidchar)];
+			rand_num /= sizeof(invalidchar);
+			if (rand_num < sizeof(invalidchar))
+				rand_num = prandom_u32();
+		}
+	}
+}
+#endif
+
 static int vfat_build_slots(struct inode *dir, const unsigned char *name,
 			    int len, int is_dir, int cluster,
 			    struct timespec *ts,
