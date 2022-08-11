@@ -1,4 +1,3 @@
-/* binder.c
  *
  * Android IPC Subsystem
  *
@@ -2359,7 +2358,9 @@ static int binder_thread_write(struct binder_proc *proc,
 						ref->desc);
 				}
 			} else
-				ref = binder_get_ref(proc, target);
+                             ref = binder_get_ref(proc, target,						 
+                                                 cmd == BC_ACQUIRE ||						 
+                                                 cmd == BC_RELEASE);
 			if (ref == NULL) {
 				binder_user_error("%d:%d refcount change on invalid ref %d\n",
 					proc->pid, thread->pid, target);
