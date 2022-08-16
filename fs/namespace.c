@@ -2448,15 +2448,9 @@ SYSCALL_DEFINE5(mount, char __user *, dev_name, char __user *, dir_name,
 		char __user *, type, unsigned long, flags, void __user *, data)
 {
 	int ret;
-<<<<<<< HEAD
-	char *kernel_type;
-	char *kernel_dir;
-	char *kernel_dev;
-=======
 	char *kernel_type = NULL;
 	struct filename *kernel_dir;
 	char *kernel_dev = NULL;
->>>>>>> 914283c8c05 (vfs: define struct filename and have getname() return it)
 	unsigned long data_page;
 
 	ret = copy_mount_string(type, &kernel_type);
