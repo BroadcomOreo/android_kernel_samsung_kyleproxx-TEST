@@ -1633,6 +1633,7 @@ static struct binder_ref *binder_get_ref_olocked(struct binder_proc *proc,
 			return NULL;
 		} else {
 			return ref;
+		}	
 	}
 	return NULL;
 }
